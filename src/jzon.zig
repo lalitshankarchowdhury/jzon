@@ -11,48 +11,48 @@ pub const JsonValue = struct {
         c.json_value_free(self.value);
     }
 
-    pub fn string(self: *const JsonValue) ?[]const u8 {
+    pub fn getString(self: *const JsonValue) ?[]const u8 {
         const json_string = c.json_value_get_string(self.value) orelse return null;
         return std.mem.span(json_string);
     }
 
-    pub fn number(self: *const JsonValue) f64 {
+    pub fn getNumber(self: *const JsonValue) f64 {
         const json_number = c.json_value_get_number(self.value);
         return json_number;
     }
 
-    pub fn object(self: *const JsonValue) ?JsonObject {
+    pub fn getObject(self: *const JsonValue) ?JsonObject {
         const json_object = c.json_value_get_object(self.value) orelse return null;
         return JsonObject{ .object = json_object };
     }
 
-    pub fn array(self: *const JsonValue) ?JsonArray {
+    pub fn getArray(self: *const JsonValue) ?JsonArray {
         const json_array = c.json_value_get_array(self.value) orelse return null;
         const json_array_count = c.json_array_get_count(json_array);
         return JsonArray{ .array = json_array, .count = json_array_count };
     }
 
-    pub fn boolean(self: *const JsonValue) bool {
+    pub fn getBoolean(self: *const JsonValue) bool {
         const json_boolean = c.json_value_get_boolean(self.value);
         return json_boolean != 0;
     }
 
-    pub fn get(self: *const JsonValue, key: [:0]const u8) ?JsonValue {
+    pub fn getValue(self: *const JsonValue, key: [:0]const u8) ?JsonValue {
         if (self.type != JsonType.Object) {
             return null;
         }
         const json_object = c.json_value_get_object(self.value) orelse return null;
         const obj = JsonObject{ .object = json_object };
-        return obj.get(key) orelse return null;
+        return obj.getValue(key) orelse return null;
     }
 
-    pub fn getPath(self: *const JsonValue, keys: []const [:0]const u8) ?JsonValue {
+    pub fn getValueFromPath(self: *const JsonValue, keys: []const [:0]const u8) ?JsonValue {
         if (self.type != JsonType.Object) {
             return null;
         }
         const json_object = c.json_value_get_object(self.value) orelse return null;
         const obj = JsonObject{ .object = json_object };
-        return obj.getPath(keys) orelse return null;
+        return obj.getValueFromPath(keys) orelse return null;
     }
 };
 
@@ -68,7 +68,7 @@ pub const JsonType = enum(u32) {
 pub const JsonObject = struct {
     object: *c.JSON_Object,
 
-    pub fn get(self: *const JsonObject, key: [:0]const u8) ?JsonValue {
+    pub fn getValue(self: *const JsonObject, key: [:0]const u8) ?JsonValue {
         const json_value = c.json_object_get_value(self.object, key) orelse return null;
         const json_value_type = c.json_value_get_type(json_value);
         if (json_value_type == -1) {
@@ -77,12 +77,12 @@ pub const JsonObject = struct {
         return JsonValue{ .value = json_value, .type = @as(JsonType, @enumFromInt(json_value_type - 1)) };
     }
 
-    pub fn getPath(self: *const JsonObject, keys: []const [:0]const u8) ?JsonValue {
+    pub fn getValueFromPath(self: *const JsonObject, keys: []const [:0]const u8) ?JsonValue {
         if (keys.len == 0) return null;
-        var current = self.get(keys[0]);
+        var current = self.getValue(keys[0]);
         for (1..keys.len) |i| {
-            const obj = current.?.object() orelse return null;
-            current = obj.get(keys[i]);
+            const obj = current.?.getObject() orelse return null;
+            current = obj.getValue(keys[i]);
         }
         return current;
     }
@@ -92,7 +92,7 @@ pub const JsonArray = struct {
     array: *c.JSON_Array,
     count: u64,
 
-    pub fn at(self: *const JsonArray, index: usize) ?JsonValue {
+    pub fn valueAt(self: *const JsonArray, index: usize) ?JsonValue {
         const json_value = c.json_array_get_value(self.array, index) orelse return null;
         const json_value_type = c.json_value_get_type(json_value);
         if (json_value_type == -1) {
@@ -101,7 +101,7 @@ pub const JsonArray = struct {
         return JsonValue{ .value = json_value, .type = @as(JsonType, @enumFromInt(json_value_type - 1)) };
     }
 
-    pub fn items(self: *const JsonArray, allocator: std.mem.Allocator) ?[]JsonValue {
+    pub fn getItems(self: *const JsonArray, allocator: std.mem.Allocator) ?[]JsonValue {
         const values = try allocator.alloc(JsonValue, self.count);
         for (0..self.count) |i| {
             const json_value = c.json_array_get_value(self.array, i) orelse return null;
@@ -118,7 +118,7 @@ pub const JsonArray = struct {
 
 pub const JsonError = error{ ParseFailed, TypeError, KeyError };
 
-pub fn parse_file(filename: [:0]const u8) !JsonValue {
+pub fn parseFile(filename: [:0]const u8) !JsonValue {
     const json_value = c.json_parse_file(filename.ptr) orelse return JsonError.ParseFailed;
     const json_value_type = c.json_value_get_type(json_value);
     if (json_value_type == -1) {
