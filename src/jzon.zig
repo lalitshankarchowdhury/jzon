@@ -45,6 +45,15 @@ pub const JsonValue = struct {
         const obj = JsonObject{ .object = json_object };
         return obj.get(key) orelse return null;
     }
+
+    pub fn getPath(self: *const JsonValue, keys: []const [:0]const u8) ?JsonValue {
+        if (self.type != JsonType.Object) {
+            return null;
+        }
+        const json_object = c.json_value_get_object(self.value) orelse return null;
+        const obj = JsonObject{ .object = json_object };
+        return obj.getPath(keys) orelse return null;
+    }
 };
 
 pub const JsonType = enum(u32) {
@@ -67,11 +76,30 @@ pub const JsonObject = struct {
         }
         return JsonValue{ .value = json_value, .type = @as(JsonType, @enumFromInt(json_value_type - 1)) };
     }
+
+    pub fn getPath(self: *const JsonObject, keys: []const [:0]const u8) ?JsonValue {
+        if (keys.len == 0) return null;
+        var current = self.get(keys[0]);
+        for (1..keys.len) |i| {
+            const obj = current.?.object() orelse return null;
+            current = obj.get(keys[i]);
+        }
+        return current;
+    }
 };
 
 pub const JsonArray = struct {
     array: *c.JSON_Array,
     count: u64,
+
+    pub fn at(self: *const JsonArray, index: usize) ?JsonValue {
+        const json_value = c.json_array_get_value(self.array, index) orelse return null;
+        const json_value_type = c.json_value_get_type(json_value);
+        if (json_value_type == -1) {
+            return null;
+        }
+        return JsonValue{ .value = json_value, .type = @as(JsonType, @enumFromInt(json_value_type - 1)) };
+    }
 
     pub fn items(self: *const JsonArray, allocator: std.mem.Allocator) ?[]JsonValue {
         const values = try allocator.alloc(JsonValue, self.count);
@@ -91,7 +119,7 @@ pub const JsonArray = struct {
 pub const JsonError = error{ ParseFailed, TypeError, KeyError };
 
 pub fn parse_file(filename: [:0]const u8) !JsonValue {
-    const json_value = c.json_parse_file_with_comments(filename.ptr) orelse return JsonError.ParseFailed;
+    const json_value = c.json_parse_file(filename.ptr) orelse return JsonError.ParseFailed;
     const json_value_type = c.json_value_get_type(json_value);
     if (json_value_type == -1) {
         return JsonError.TypeError;
