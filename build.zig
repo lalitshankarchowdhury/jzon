@@ -48,6 +48,10 @@ pub fn build(b: *std.Build) void {
     exe_mod.addCSourceFile(.{
         .file = b.path("parson/parson.c"),
     });
+    exe_mod.addIncludePath(b.path("yyjson/src"));
+    exe_mod.addCSourceFile(.{
+        .file = b.path("yyjson/src/yyjson.c"),
+    });
 
     // Now, we will create a static library based on the module we created above.
     // This creates a `std.Build.Step.Compile`, which is the build step responsible
