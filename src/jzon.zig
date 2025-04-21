@@ -124,7 +124,7 @@ pub const JsonValue = struct {
         }
     }
 
-    fn setArrayItem(self: *const JsonValue, val: *c.yyjson_mut_val, idx: usize) JsonError!void {
+    fn setArrayItemAt_(self: *const JsonValue, idx: usize, val: *c.yyjson_mut_val) JsonError!void {
         if (idx >= self.getArrayLength()) {
             if (!c.yyjson_mut_arr_append(self.value, val)) return JsonError.ArrayValueAddFailed;
         } else {
@@ -132,41 +132,36 @@ pub const JsonValue = struct {
         }
     }
 
-    pub fn setArrayItemAt(self: *const JsonValue, doc: *const JsonDoc, item: anytype, idx: usize) !void {
-        switch (@TypeOf(item)) {
-            f64 => {
-                try self.setArrayItem(c.yyjson_mut_double(doc.doc, item), idx);
-            },
-            bool => {
-                try self.setArrayItem(c.yyjson_mut_bool(doc.doc, item), idx);
-            },
-            @TypeOf(null) => {
-                try self.setArrayItem(c.yyjson_mut_null(doc.doc), idx);
-            },
-            [:0]const u8 => {
-                try self.setArrayItem(c.yyjson_mut_str(doc.doc, item), idx);
-            },
-            else => {
-                return JsonError.TypeError;
-            },
+    pub fn setArrayItemAt(self: *const JsonValue, doc: *const JsonDoc, idx: usize, item: anytype) !void {
+        const type_of = @TypeOf(item);
+        if (type_of == f64) {
+            try self.setArrayItemAt_(idx, c.yyjson_mut_double(doc.doc, item));
+        } else if (type_of == bool) {
+            try self.setArrayItemAt_(idx, c.yyjson_mut_bool(doc.doc, item));
+        } else if (type_of == @TypeOf(null)) {
+            try self.setArrayItemAt_(idx, c.yyjson_mut_null(doc.doc));
+        } else if (@TypeOf("", item) == [:0]const u8) {
+            try self.setArrayItemAt_(idx, c.yyjson_mut_str(doc.doc, item));
+        } else {
+            return JsonError.TypeError;
         }
     }
 
-    pub fn setArray(self: *const JsonValue, doc: *const JsonDoc, comptime items: anytype) !void {
+    pub fn setArray(self: *const JsonValue, doc: *const JsonDoc, items: anytype) !void {
         switch (@TypeOf(items)) {
             *const [items.len]f64 => { // Number array
                 for (0..items.len) |i| {
-                    try self.setArrayItemAt(doc, items[i], i);
+                    try self.setArrayItemAt(doc, i, items[i]);
                 }
             },
             *const [items.len]bool => { // Boolean array
                 for (0..items.len) |i| {
-                    try self.setArrayItemAt(doc, items[i], i);
+                    try self.setArrayItemAt(doc, i, items[i]);
                 }
             },
             *const [items.len][:0]const u8 => { // String array
                 for (0..items.len) |i| {
-                    try self.setArrayItemAt(doc, items[i], i);
+                    try self.setArrayItemAt(doc, i, items[i]);
                 }
             },
             else => {
@@ -174,9 +169,42 @@ pub const JsonValue = struct {
             },
         }
     }
+
+    fn setObject_(self: *const JsonValue, key: *c.yyjson_mut_val, val: *c.yyjson_mut_val) !void {
+        if (!c.yyjson_mut_obj_put(self.value, key, val)) {
+            return JsonError.ObjectInsertFailed;
+        }
+    }
+
+    pub fn setObject(self: *const JsonValue, doc: *const JsonDoc, key: [:0]const u8, item: anytype) !void {
+        const type_of = @TypeOf(item);
+        if (type_of == f64) {
+            try self.setObject_(
+                c.yyjson_mut_str(doc.doc, key),
+                c.yyjson_mut_double(doc.doc, item),
+            );
+        } else if (type_of == bool) {
+            try self.setObject_(
+                c.yyjson_mut_str(doc.doc, key),
+                c.yyjson_mut_bool(doc.doc, item),
+            );
+        } else if (type_of == @TypeOf(null)) {
+            try self.setObject_(
+                c.yyjson_mut_str(doc.doc, key),
+                c.yyjson_mut_null(doc.doc),
+            );
+        } else if (@TypeOf("", item) == [:0]const u8) {
+            try self.setObject_(
+                c.yyjson_mut_str(doc.doc, key),
+                c.yyjson_mut_str(doc.doc, item),
+            );
+        } else {
+            return JsonError.TypeError;
+        }
+    }
 };
 
-pub const JsonError = error{ ReadFailed, WriteFailed, MutableConversionFailed, SetValueFailed, TypeError, ArrayValueAddFailed, ArrayValueSetFailed };
+pub const JsonError = error{ ReadFailed, WriteFailed, MutableConversionFailed, SetValueFailed, TypeError, ArrayValueAddFailed, ArrayValueSetFailed, ObjectInsertFailed };
 
 pub fn parseFile(filename: [:0]const u8) !JsonDoc {
     var err: c.yyjson_read_err = c.yyjson_read_err{
