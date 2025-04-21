@@ -51,3 +51,33 @@ pub fn main() !void {
     try jzon.writeFile(filename, &doc);
 }
 ```
+
+## Build instructions
+
+1. Clone the `jzon` repository to project root:
+
+`git clone https://github.com/lalitshankarchowdhury/jzon`
+
+2. Initialize the `yyjson` submodule (required by `jzon`):
+
+ `git submodule update --init --recursive` to fetch `yyjson` dependency
+
+3. Update your `build.zig` with the following snippet:
+
+```zig
+const jzon_dep = b.dependency("jzon", .{ .target = target, .optimize = optimize });
+exe.root_module.addImport("jzon", jzon_dep.module("jzon"));
+exe.linkLibrary(jzon_dep.artifact("yyjson"));
+exe.linkLibC();
+exe.addIncludePath(b.path("jzon/yyjson/src"));
+```
+
+4. Add this to your `build.zig.zon`:
+
+```zig
+.dependencies = .{
+    .jzon = .{ .path = "jzon" },
+},
+```
+
+5. Run `zig build` to confirm
