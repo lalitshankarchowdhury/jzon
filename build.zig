@@ -44,10 +44,6 @@ pub fn build(b: *std.Build) void {
     // This is what allows Zig source code to use `@import("foo")` where 'foo' is not a
     // file path. In this case, we set up `exe_mod` to import `lib_mod`.
     exe_mod.addImport("jzon_lib", lib_mod);
-    exe_mod.addIncludePath(b.path("parson"));
-    exe_mod.addCSourceFile(.{
-        .file = b.path("parson/parson.c"),
-    });
     exe_mod.addIncludePath(b.path("yyjson/src"));
     exe_mod.addCSourceFile(.{
         .file = b.path("yyjson/src/yyjson.c"),
